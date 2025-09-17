@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date, datetime
 from typing import Any, Dict, Optional
 
 from requests import Session
@@ -46,6 +47,13 @@ class ApiClient:
             route = f"api/{route}"
         return f"{self._base_url}/{route}"
 
+    @staticmethod
+    def _json_default(value: Any) -> str:
+        """Serialize datetime/date objects to ISO strings for request payloads."""
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
     def request(self, method: str, route: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = self._url(route)
         logger.debug("API %s %s", method.upper(), url)
@@ -53,7 +61,7 @@ class ApiClient:
             method=method.upper(),
             url=url,
             headers=self._headers(),
-            data=json.dumps(payload or {}),
+            data=json.dumps(payload or {}, default=self._json_default),
             timeout=self._timeout,
         )
 

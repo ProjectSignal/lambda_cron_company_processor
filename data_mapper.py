@@ -161,15 +161,16 @@ def validate_extracted_data(data: Dict[str, Any], min_required: Optional[int] = 
 def add_processing_metadata(data: Dict[str, Any], method: str, original_url: str = None) -> Dict[str, Any]:
     """Add metadata fields for processing tracking with enhanced information."""
     now = datetime.datetime.now(datetime.timezone.utc)
+    now_iso = now.isoformat()
     
     metadata = {
         "platform": "linkedin",
         "scrapped": True,
         "extracted": True,
         "processed_via": method,
-        "extractedAt": now,
-        "scrappedAt": now,
-        "processedAt": now,
+        "extractedAt": now_iso,
+        "scrappedAt": now_iso,
+        "processedAt": now_iso,
         "websiteMarkdownStatus": "not_attempted",
         "processor_version": "new_company_processor_v1",
         "worker_id": config.WORKER_ID
