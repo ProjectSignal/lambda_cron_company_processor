@@ -172,7 +172,6 @@ def add_processing_metadata(data: Dict[str, Any], method: str, original_url: str
         "scrappedAt": now_iso,
         "processedAt": now_iso,
         "websiteMarkdownStatus": "not_attempted",
-        "processor_version": "new_company_processor_v1",
     }
     
     # Add method-specific metadata
