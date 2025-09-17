@@ -173,7 +173,6 @@ def add_processing_metadata(data: Dict[str, Any], method: str, original_url: str
         "processedAt": now_iso,
         "websiteMarkdownStatus": "not_attempted",
         "processor_version": "new_company_processor_v1",
-        "worker_id": config.WORKER_ID
     }
     
     # Add method-specific metadata

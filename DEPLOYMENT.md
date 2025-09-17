@@ -22,7 +22,6 @@ Configure these in the Lambda console or infrastructure-as-code stack:
 | `RAPIDAPI_URL` |  | Optional override for the RapidAPI URL |
 | `REQUEST_TIMEOUT` |  | External request timeout in seconds (default `45`) |
 | `CLEANUP_ON_FAILURE` |  | When `true`, deletes webpages that fail all providers (default `true`) |
-| `WORKER_ID` |  | Worker identifier used in telemetry (defaults to Lambda function name) |
 
 Keep the shared XML generator and downstream lambdas aligned by reusing `BASE_API_URL`/`INSIGHTS_API_KEY` conventions.
 

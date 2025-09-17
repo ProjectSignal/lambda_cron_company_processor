@@ -15,10 +15,6 @@ class Config:
         self.API_MAX_RETRIES = int(self._get_env("API_MAX_RETRIES", default="3"))
 
         # Lambda runtime metadata
-        self.WORKER_ID = self._get_env(
-            "WORKER_ID",
-            default=self._get_env("AWS_LAMBDA_FUNCTION_NAME", default="local-worker"),
-        )
         self.LAMBDA_MEMORY_LIMIT = int(self._get_env("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", default="512"))
         self.LAMBDA_TIMEOUT = int(self._get_env("AWS_LAMBDA_FUNCTION_TIMEOUT", default="900"))
 
