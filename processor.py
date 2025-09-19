@@ -18,6 +18,49 @@ class NewCompanyProcessor:
         self.service = data_service or CompanyDataService()
         self.jina_fetcher = JinaFetcher()
         self.rapidapi_fetcher = RapidAPIFetcher() if config.RAPIDAPI_KEY else None
+
+    @staticmethod
+    def _success_result(
+        webpage_id: str,
+        *,
+        via: str,
+        nodes_updated: int,
+        fields_extracted: int,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
+            "success": True,
+            "via": via,
+            "webpageId": webpage_id,
+            "webpage_id": webpage_id,
+            "nodesUpdated": nodes_updated,
+            "nodes_updated": nodes_updated,
+            "fieldsExtracted": fields_extracted,
+            "fields_extracted": fields_extracted,
+        }
+        if metadata:
+            result["metadata"] = metadata
+        return result
+
+    @staticmethod
+    def _failure_result(
+        webpage_id: str,
+        *,
+        error: str,
+        error_type: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        result: Dict[str, Any] = {
+            "success": False,
+            "webpageId": webpage_id,
+            "webpage_id": webpage_id,
+            "error": error,
+        }
+        if error_type:
+            result["errorType"] = error_type
+        if extra:
+            result.update(extra)
+        return result
     
     def process_webpage(self, webpage_id: str) -> Dict[str, Any]:
         """
@@ -32,14 +75,14 @@ class NewCompanyProcessor:
             if not webpage:
                 error_msg = f"Webpage {webpage_id} not found"
                 logger.error(error_msg)
-                return {"success": False, "error": error_msg, "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error=error_msg, error_type="webpage_not_found")
             
             url = webpage.get("url")
             if not url:
                 error_msg = f"No URL found for webpage {webpage_id}"
                 logger.error(error_msg)
                 self.service.mark_webpage_failed(webpage_id, "missing_url", error_msg)
-                return {"success": False, "error": error_msg, "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error=error_msg, error_type="missing_url")
             
             logger.info(f"Processing URL: {url}")
             
@@ -70,13 +113,15 @@ class NewCompanyProcessor:
             else:
                 self.service.mark_webpage_failed(webpage_id, "both_apis_failed", error_msg)
             
-            return {
-                "success": False,
-                "error": "both_apis_failed",
-                "webpage_id": webpage_id,
-                "jina_error": jina_result.get("error"),
-                "rapidapi_error": rapidapi_result.get("error")
-            }
+            return self._failure_result(
+                webpage_id,
+                error="both_apis_failed",
+                error_type="both_apis_failed",
+                extra={
+                    "jinaError": jina_result.get("error"),
+                    "rapidapiError": rapidapi_result.get("error"),
+                },
+            )
             
         except Exception as e:
             error_msg = f"Unexpected error processing webpage {webpage_id}: {str(e)}"
@@ -84,7 +129,7 @@ class NewCompanyProcessor:
             
             self.service.mark_webpage_failed(webpage_id, "processing_error", error_msg)
             
-            return {"success": False, "error": error_msg, "webpage_id": webpage_id}
+            return self._failure_result(webpage_id, error=error_msg, error_type="processing_error")
     
     def process_with_jina(self, webpage_id: str, url: str) -> Dict[str, Any]:
         """Process webpage using Jina AI to fetch HTML and parse it."""
@@ -95,24 +140,28 @@ class NewCompanyProcessor:
             html_content = self.jina_fetcher.fetch(url)
             if not html_content:
                 self.service.mark_webpage_failed(webpage_id, "jina_fetch_failed", "Failed to fetch HTML from Jina API")
-                return {"success": False, "error": "jina_fetch_failed", "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error="jina_fetch_failed", error_type="jina_fetch_failed")
             
             # Parse HTML with html_to_object
             try:
                 extracted_data = html_to_object(html_content)
                 if not extracted_data:
                     self.service.mark_webpage_failed(webpage_id, "html_parsing_failed", "HTML parsing returned no data")
-                    return {"success": False, "error": "html_parsing_failed", "webpage_id": webpage_id}
+                    return self._failure_result(webpage_id, error="html_parsing_failed", error_type="html_parsing_failed")
             except Exception as e:
                 error_msg = f"Error parsing HTML for webpage {webpage_id}: {str(e)}"
                 logger.error(error_msg)
                 self.service.mark_webpage_failed(webpage_id, "html_parsing_error", error_msg)
-                return {"success": False, "error": f"html_parsing_error: {str(e)}", "webpage_id": webpage_id}
+                return self._failure_result(
+                    webpage_id,
+                    error=f"html_parsing_error: {str(e)}",
+                    error_type="html_parsing_error",
+                )
             
             # Validate data quality
             if not validate_extracted_data(extracted_data):
                 self.service.mark_webpage_failed(webpage_id, "data_validation_failed", "Insufficient data extracted from HTML")
-                return {"success": False, "error": "data_validation_failed", "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error="data_validation_failed", error_type="data_validation_failed")
             
             # Add processing metadata
             update_data = add_processing_metadata(extracted_data, "jina", url)
@@ -121,25 +170,24 @@ class NewCompanyProcessor:
             success = self.service.update_webpage(webpage_id, update_data)
             if not success:
                 self.service.mark_webpage_failed(webpage_id, "database_update_failed", "Failed to update webpage in database")
-                return {"success": False, "error": "database_update_failed", "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error="database_update_failed", error_type="database_update_failed")
             
             # Update nodes with company data
             updated_nodes = self.service.update_nodes_with_company_data(webpage_id, extracted_data)
             
             logger.info(f"Successfully processed webpage {webpage_id} with Jina (updated {updated_nodes} nodes)")
-            return {
-                "success": True,
-                "via": "jina",
-                "webpage_id": webpage_id,
-                "nodes_updated": updated_nodes,
-                "fields_extracted": len([k for k, v in extracted_data.items() if v])
-            }
+            return self._success_result(
+                webpage_id,
+                via="jina",
+                nodes_updated=updated_nodes,
+                fields_extracted=len([k for k, v in extracted_data.items() if v]),
+            )
             
         except Exception as e:
             error_msg = f"Jina processing error for webpage {webpage_id}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             self.service.mark_webpage_failed(webpage_id, "jina_processing_error", error_msg)
-            return {"success": False, "error": error_msg, "webpage_id": webpage_id}
+            return self._failure_result(webpage_id, error=error_msg, error_type="jina_processing_error")
     
     def process_with_rapidapi(self, webpage_id: str, url: str) -> Dict[str, Any]:
         """Process webpage using RapidAPI as fallback."""
@@ -150,24 +198,28 @@ class NewCompanyProcessor:
             rapid_data = self.rapidapi_fetcher.fetch(url)
             if not rapid_data:
                 self.service.mark_webpage_failed(webpage_id, "rapidapi_failed_api", "RapidAPI returned no data")
-                return {"success": False, "error": "rapidapi_fetch_failed", "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error="rapidapi_fetch_failed", error_type="rapidapi_fetch_failed")
             
             # Map RapidAPI data to standard format
             try:
                 mapped_data = map_rapidapi_to_standard(rapid_data)
                 if not mapped_data:
                     self.service.mark_webpage_failed(webpage_id, "data_mapping_failed", "RapidAPI data mapping failed")
-                    return {"success": False, "error": "data_mapping_failed", "webpage_id": webpage_id}
+                    return self._failure_result(webpage_id, error="data_mapping_failed", error_type="data_mapping_failed")
             except Exception as e:
                 error_msg = f"Error mapping RapidAPI data for webpage {webpage_id}: {str(e)}"
                 logger.error(error_msg)
                 self.service.mark_webpage_failed(webpage_id, "rapidapi_mapping_error", error_msg)
-                return {"success": False, "error": f"data_mapping_error: {str(e)}", "webpage_id": webpage_id}
+                return self._failure_result(
+                    webpage_id,
+                    error=f"data_mapping_error: {str(e)}",
+                    error_type="rapidapi_mapping_error",
+                )
             
             # Validate mapped data
             if not validate_extracted_data(mapped_data):
                 self.service.mark_webpage_failed(webpage_id, "data_validation_failed", "RapidAPI data validation failed")
-                return {"success": False, "error": "data_validation_failed", "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error="data_validation_failed", error_type="data_validation_failed")
             
             # Add processing metadata
             update_data = add_processing_metadata(mapped_data, "rapidapi", url)
@@ -176,25 +228,24 @@ class NewCompanyProcessor:
             success = self.service.update_webpage(webpage_id, update_data)
             if not success:
                 self.service.mark_webpage_failed(webpage_id, "database_update_failed", "Failed to update webpage with RapidAPI data")
-                return {"success": False, "error": "database_update_failed", "webpage_id": webpage_id}
+                return self._failure_result(webpage_id, error="database_update_failed", error_type="database_update_failed")
             
             # Update nodes with company data
             updated_nodes = self.service.update_nodes_with_company_data(webpage_id, mapped_data)
             
             logger.info(f"Successfully processed webpage {webpage_id} with RapidAPI (updated {updated_nodes} nodes)")
-            return {
-                "success": True,
-                "via": "rapidapi",
-                "webpage_id": webpage_id,
-                "nodes_updated": updated_nodes,
-                "fields_extracted": len([k for k, v in mapped_data.items() if v])
-            }
+            return self._success_result(
+                webpage_id,
+                via="rapidapi",
+                nodes_updated=updated_nodes,
+                fields_extracted=len([k for k, v in mapped_data.items() if v]),
+            )
             
         except Exception as e:
             error_msg = f"RapidAPI processing error for webpage {webpage_id}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             self.service.mark_webpage_failed(webpage_id, "rapidapi_processing_error", error_msg)
-            return {"success": False, "error": error_msg, "webpage_id": webpage_id}
+            return self._failure_result(webpage_id, error=error_msg, error_type="rapidapi_processing_error")
     
     def compare_apis_for_webpage(self, webpage_id: str) -> Dict[str, Any]:
         """
@@ -207,19 +258,19 @@ class NewCompanyProcessor:
             # Get webpage data
             webpage = self.service.fetch_webpage(webpage_id)
             if not webpage:
-                return {
-                    "success": False,
-                    "error": f"Webpage {webpage_id} not found",
-                    "webpage_id": webpage_id
-                }
-            
+                return self._failure_result(
+                    webpage_id,
+                    error=f"Webpage {webpage_id} not found",
+                    error_type="webpage_not_found",
+                )
+
             url = webpage.get("url")
             if not url:
-                return {
-                    "success": False,
-                    "error": f"No URL found for webpage {webpage_id}",
-                    "webpage_id": webpage_id
-                }
+                return self._failure_result(
+                    webpage_id,
+                    error=f"No URL found for webpage {webpage_id}",
+                    error_type="missing_url",
+                )
             
             # Test both APIs
             jina_result = self._test_jina_only(webpage_id, url)
@@ -227,17 +278,18 @@ class NewCompanyProcessor:
             
             return {
                 "success": True,
+                "webpageId": webpage_id,
                 "webpage_id": webpage_id,
                 "url": url,
                 "jina": jina_result,
                 "rapidapi": rapidapi_result,
                 "comparison": self._generate_field_comparison(jina_result, rapidapi_result)
             }
-            
+
         except Exception as e:
             error_msg = f"API comparison error for webpage {webpage_id}: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return {"success": False, "error": error_msg, "webpage_id": webpage_id}
+            return self._failure_result(webpage_id, error=error_msg, error_type="comparison_error")
     
     def _test_jina_only(self, webpage_id: str, url: str) -> Dict[str, Any]:
         """Test Jina API independently and return detailed results."""

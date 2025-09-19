@@ -52,7 +52,9 @@ def test_lambda():
         print(f"Status Code: {result['statusCode']}")
 
         # Parse and display the response
-        response_body = json.loads(result['body'])
+        response_body = result.get('body', {})
+        if isinstance(response_body, str):
+            response_body = json.loads(response_body)
 
         if result['statusCode'] == 200 and response_body.get('success'):
             print(f"🎉 SUCCESS!")
@@ -60,6 +62,8 @@ def test_lambda():
             print(f"   - Webpage ID: {response_body.get('webpageId')}")
             print(f"   - Nodes Updated: {response_body.get('nodesUpdated', 0)}")
             print(f"   - Processing Via: {response_body.get('via', 'Unknown')}")
+            if response_body.get('fieldsExtracted') is not None:
+                print(f"   - Fields Extracted: {response_body.get('fieldsExtracted')}")
             print(f"   - Status: {response_body.get('message', 'Processed successfully')}")
             print(f"   - ✅ Company data has been processed and stored")
             print()

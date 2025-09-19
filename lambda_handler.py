@@ -50,15 +50,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     payload = _extract_payload(event)
     action = payload.get("operation") or payload.get("action") or "process"
     webpage_id = payload.get("webpageId")
+    node_id = payload.get("nodeId")
+    user_id = payload.get("userId")
 
     if not webpage_id:
         logger.error("webpageId missing from event payload")
         return {
             "statusCode": 400,
-            "body": json.dumps({
+            "body": {
                 "success": False,
                 "error": "webpageId required",
-            }),
+                "webpageId": webpage_id,
+                "nodeId": node_id,
+                "userId": user_id,
+            },
         }
 
     processor = _get_processor()
@@ -69,7 +74,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         status_code = 200 if result.get("success") else 500
         return {
             "statusCode": status_code,
-            "body": json.dumps(result, default=str),
+            "body": result,
         }
 
     logger.info("Processing webpage %s", webpage_id)
@@ -78,20 +83,31 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     response_body = {
         "webpageId": webpage_id,
+        "nodeId": node_id,
+        "userId": user_id,
         "success": success,
         "via": result.get("via"),
-        "nodesUpdated": result.get("nodes_updated", 0),
+        "nodesUpdated": result.get("nodesUpdated", result.get("nodes_updated", 0)),
+        "nodes_updated": result.get("nodes_updated", result.get("nodesUpdated", 0)),
+        "fieldsExtracted": result.get("fieldsExtracted", result.get("fields_extracted")),
+        "fields_extracted": result.get("fields_extracted", result.get("fieldsExtracted")),
     }
+
+    if response_body["fieldsExtracted"] is None:
+        response_body.pop("fieldsExtracted", None)
+    if response_body["fields_extracted"] is None:
+        response_body.pop("fields_extracted", None)
 
     if success:
         response_body["message"] = "Company processed successfully"
     else:
         response_body["error"] = result.get("error", "processing_failed")
-        response_body["jinaError"] = result.get("jina_error")
-        response_body["rapidapiError"] = result.get("rapidapi_error")
+        response_body["errorType"] = result.get("errorType")
+        response_body["jinaError"] = result.get("jinaError") or result.get("jina_error")
+        response_body["rapidapiError"] = result.get("rapidapiError") or result.get("rapidapi_error")
 
     status_code = 200 if success else 500
     return {
         "statusCode": status_code,
-        "body": json.dumps(response_body, default=str),
+        "body": response_body,
     }
