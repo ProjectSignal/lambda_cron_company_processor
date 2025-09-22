@@ -14,10 +14,6 @@ class Config:
         self.API_TIMEOUT_SECONDS = int(self._get_env("API_TIMEOUT_SECONDS", default="30"))
         self.API_MAX_RETRIES = int(self._get_env("API_MAX_RETRIES", default="3"))
 
-        # Lambda runtime metadata
-        self.LAMBDA_MEMORY_LIMIT = int(self._get_env("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", default="512"))
-        self.LAMBDA_TIMEOUT = int(self._get_env("AWS_LAMBDA_FUNCTION_TIMEOUT", default="900"))
-
         # External providers
         self.JINA_READER_API_KEY = self._get_env("JINA_READER_API_KEY", required=True)
         self.JINA_BASE_URL = self._get_env("JINA_BASE_URL", default="https://r.jina.ai/")
@@ -27,12 +23,7 @@ class Config:
         self.RAPIDAPI_URL = self._get_env("RAPIDAPI_URL", default=default_rapidapi_url)
 
         # Processing behaviour
-        self.REQUEST_TIMEOUT = int(self._get_env("REQUEST_TIMEOUT", default="45"))
-        self.RETRY_DELAY = float(self._get_env("RETRY_DELAY", default="2"))
-        self.SLEEP_BETWEEN_REQUESTS = float(self._get_env("SLEEP_BETWEEN_REQUESTS", default="1.0"))
-        self.MIN_REQUIRED_FIELDS = int(self._get_env("MIN_REQUIRED_FIELDS", default="3"))
         self.CLEANUP_ON_FAILURE = self._get_env("CLEANUP_ON_FAILURE", default="true").lower() == "true"
-        self.ENABLE_RETRY = self._get_env("ENABLE_RETRY", default="true").lower() == "true"
 
         # Data quality thresholds
         required_fields_raw = self._get_env(
@@ -60,8 +51,6 @@ class Config:
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-        if self.MIN_REQUIRED_FIELDS <= 0:
-            raise ValueError("MIN_REQUIRED_FIELDS must be greater than 0")
         if self.REQUEST_TIMEOUT <= 0:
             raise ValueError("REQUEST_TIMEOUT must be greater than 0")
 
