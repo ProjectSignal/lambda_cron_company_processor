@@ -5,13 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any, Dict
 
-from dotenv import load_dotenv
-
 from config import config
 from logging_config import setup_logger
 from processor import NewCompanyProcessor
-
-load_dotenv()
 
 logger = setup_logger(__name__)
 
