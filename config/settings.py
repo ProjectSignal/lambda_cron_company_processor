@@ -51,8 +51,8 @@ class Config:
         if missing_vars:
             raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-        if self.REQUEST_TIMEOUT <= 0:
-            raise ValueError("REQUEST_TIMEOUT must be greater than 0")
+        if self.API_TIMEOUT_SECONDS <= 0:
+            raise ValueError("API_TIMEOUT_SECONDS must be greater than 0")
 
 
 config = Config()
